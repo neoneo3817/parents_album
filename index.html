@@ -1,0 +1,1004 @@
+<!DOCTYPE html>
+<html lang="ko" class="text-[16px] sm:text-[18px]">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>부모님 추억 서재 - 여행 사진 및 동영상 앨범</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Google API Client & Google Identity Services for Google Drive Integration -->
+    <script src="https://apis.google.com/js/api.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700;800&family=Gowun+Batang:wght@400;700&display=swap');
+
+        :root {
+            --font-main: 'Pretendard', system-ui, -apple-system, sans-serif;
+            --font-book: 'Gowun Batang', serif;
+            --text-scale: 1;
+        }
+
+        html {
+            font-size: calc(16px * var(--text-scale));
+        }
+
+        body {
+            font-family: var(--font-main);
+            background-color: #f8fafc;
+            color: #0f172a;
+            overflow-x: hidden;
+            line-height: 1.6;
+            word-break: keep-all;
+        }
+
+        .font-book-title {
+            font-family: var(--font-book);
+        }
+
+        /* 3D Perspective Context */
+        .perspective-container {
+            perspective: 1600px;
+            perspective-origin: 50% 40%;
+        }
+
+        /* 3D Shelf Layering */
+        .shelf-structure {
+            box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.15), inset 0 2px 8px rgba(255, 255, 255, 0.9);
+        }
+
+        .shelf-board {
+            background: linear-gradient(180deg, #d97706 0%, #92400e 100%);
+            box-shadow: 0 10px 16px -2px rgba(0,0,0,0.3), inset 0 3px 6px rgba(255,255,255,0.4);
+        }
+
+        /* Book Spine Design - High Accessibility for Mobile Big Fonts */
+        .book-spine-card {
+            transition: transform 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.35s ease;
+            cursor: pointer;
+            transform-origin: bottom center;
+            min-height: 16rem;
+            width: clamp(6rem, 16vw, 8rem);
+        }
+
+        .book-spine-card:hover, .book-spine-card:focus-visible {
+            transform: translateZ(50px) translateY(-18px) rotateX(-5deg);
+            outline: 4px solid #4f46e5;
+            outline-offset: 4px;
+        }
+
+        /* Responsive Vertical Spine Title */
+        .spine-text-container {
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            letter-spacing: 0.08em;
+            max-height: 11.5rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Touch Targets for Seniors (Min 48px/3rem) */
+        .touch-btn {
+            min-height: 3.25rem;
+            min-width: 3.25rem;
+        }
+
+        /* Opening 3D Animation */
+        @keyframes openBookAnimation {
+            0% {
+                transform: scale(0.7) translateY(40px) rotateY(-20deg);
+                opacity: 0;
+            }
+            100% {
+                transform: scale(1) translateY(0) rotateY(0deg);
+                opacity: 1;
+            }
+        }
+
+        .animate-book-open {
+            animation: openBookAnimation 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #94a3b8;
+            border-radius: 9999px;
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-amber-50/30 flex flex-col justify-between selection:bg-indigo-100">
+
+    <!-- Header Navigation -->
+    <header class="fixed top-0 left-0 right-0 z-40 px-4 sm:px-8 py-3 bg-white/95 backdrop-blur-md border-b-2 border-slate-200 shadow-sm flex flex-wrap justify-between items-center gap-3">
+        <button onclick="showBookshelfView()" class="flex items-center space-x-3 group text-left focus:outline-none focus:ring-4 focus:ring-indigo-300 rounded-2xl p-1">
+            <div class="w-12 h-12 rounded-2xl bg-amber-700 flex items-center justify-center text-white shadow-md shadow-amber-200 group-hover:scale-105 transition-transform flex-shrink-0">
+                <i data-lucide="book-open" class="w-7 h-7"></i>
+            </div>
+            <div>
+                <h1 class="font-extrabold text-xl sm:text-2xl text-slate-900 leading-tight">부모님 추억 서재</h1>
+                <p class="text-xs sm:text-sm font-bold text-amber-800">📁 '부모님' 드라이브 앨범 모음</p>
+            </div>
+        </button>
+
+        <div class="flex items-center space-x-2 sm:space-x-3">
+            <!-- Google Drive Auto Connect Button -->
+            <button id="connectDriveBtn" onclick="openDriveApiConfigModal()" class="touch-btn px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-extrabold text-sm sm:text-base rounded-2xl transition-all shadow-md shadow-emerald-200 flex items-center space-x-2">
+                <i data-lucide="cloud-download" class="w-5 h-5"></i>
+                <span id="driveConnectText">구글 드라이브 API 연동</span>
+            </button>
+
+            <!-- Big Font Toggle Switch -->
+            <button id="fontScaleBtn" onclick="toggleFontScale()" class="touch-btn px-4 py-2 bg-amber-100 hover:bg-amber-200 active:bg-amber-300 text-amber-950 border-2 border-amber-300 font-extrabold rounded-2xl transition-all flex items-center space-x-2 shadow-sm">
+                <i data-lucide="type" class="w-5 h-5 text-amber-900"></i>
+                <span id="fontScaleLabel" class="text-sm sm:text-base">글씨 크게</span>
+            </button>
+
+            <!-- Add Album Button -->
+            <button id="addAlbumBtn" onclick="openAddAlbumModal()" class="touch-btn px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-extrabold text-sm sm:text-base rounded-2xl transition-all shadow-md shadow-indigo-200 flex items-center space-x-2">
+                <i data-lucide="folder-plus" class="w-5 h-5"></i>
+                <span class="hidden sm:inline">새 앨범 추가</span>
+            </button>
+            
+            <!-- Return to Bookshelf Button -->
+            <button id="backToShelfBtn" onclick="showBookshelfView()" class="hidden touch-btn px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white font-extrabold text-sm sm:text-base rounded-2xl transition-all shadow-md flex items-center space-x-2">
+                <i data-lucide="layout-grid" class="w-5 h-5"></i>
+                <span>책장으로</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main View Container -->
+    <main class="pt-28 pb-12 min-h-screen flex flex-col justify-center items-center">
+        
+        <!-- SECTION 1: 3D Bookshelf Main View -->
+        <section id="bookshelfSection" class="w-full max-w-6xl px-4 py-2 flex flex-col items-center transition-all duration-500 opacity-100">
+            
+            <div class="text-center mb-6 max-w-2xl px-2">
+                <span class="inline-block text-xs sm:text-sm font-extrabold text-amber-900 bg-amber-100 border border-amber-300 px-4 py-1.5 rounded-full mb-2 shadow-sm">
+                    👆 보고 싶은 책을 손가락으로 눌러보세요
+                </span>
+                <h2 class="text-2xl sm:text-4xl font-extrabold text-slate-900 leading-snug">'부모님' 폴더 앨범 목록</h2>
+                <p class="text-sm sm:text-base text-slate-600 font-semibold mt-1">사진과 동영상이 한 권의 여행책으로 만들어졌습니다.</p>
+            </div>
+
+            <!-- 3D Bookshelf Canvas -->
+            <div class="perspective-container w-full max-w-5xl py-2">
+                <div id="bookshelfFrame" class="shelf-structure bg-stone-100 rounded-3xl p-4 sm:p-8 border-4 border-amber-900/20 shadow-2xl">
+                    
+                    <!-- Shelf Tier 1 -->
+                    <div class="shelf-layer mb-12 sm:mb-16">
+                        <div class="flex items-end justify-start space-x-4 sm:space-x-8 min-h-[17rem] px-4 pb-3 border-b-8 border-amber-900 rounded-b-sm relative">
+                            <div class="absolute -bottom-4 left-0 right-0 h-4 shelf-board rounded-sm"></div>
+                            <div id="shelfRow1" class="flex items-end space-x-4 sm:space-x-8 z-10 w-full overflow-x-auto pt-4 pb-2"></div>
+                        </div>
+                    </div>
+
+                    <!-- Shelf Tier 2 -->
+                    <div class="shelf-layer">
+                        <div class="flex items-end justify-start space-x-4 sm:space-x-8 min-h-[17rem] px-4 pb-3 border-b-8 border-amber-900 rounded-b-sm relative">
+                            <div class="absolute -bottom-4 left-0 right-0 h-4 shelf-board rounded-sm"></div>
+                            <div id="shelfRow2" class="flex items-end space-x-4 sm:space-x-8 z-10 w-full overflow-x-auto pt-4 pb-2"></div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+            
+            <div class="mt-6 flex items-center justify-center space-x-2 text-xs sm:text-sm text-slate-700 font-bold bg-white px-5 py-2.5 rounded-2xl shadow-sm border border-slate-200">
+                <i data-lucide="video" class="w-5 h-5 text-indigo-600"></i>
+                <span>사진뿐만 아니라 영상도 책 안에서 바로 재생됩니다.</span>
+            </div>
+        </section>
+
+        <!-- SECTION 2: Opened Album Spread View -->
+        <section id="albumViewerSection" class="hidden w-full max-w-5xl px-3 sm:px-6 py-2 flex flex-col items-center transition-all duration-500 opacity-0">
+            
+            <!-- Album Top Bar -->
+            <div class="w-full flex flex-wrap justify-between items-center gap-4 mb-6 bg-white p-4 sm:p-6 rounded-3xl border-2 border-slate-200 shadow-sm">
+                <div class="flex items-center space-x-3">
+                    <span id="viewerCategoryBadge" class="px-3.5 py-1.5 text-xs sm:text-sm font-extrabold rounded-xl bg-amber-100 text-amber-900 border border-amber-300">📁 부모님 폴더</span>
+                    <div>
+                        <h2 id="viewerAlbumTitle" class="text-xl sm:text-3xl font-extrabold font-book-title text-slate-900 leading-tight">앨범 제목</h2>
+                        <span id="viewerDate" class="text-xs sm:text-sm font-bold text-slate-500">2024.00</span>
+                    </div>
+                </div>
+                
+                <!-- Page Navigation Controls -->
+                <div class="flex items-center space-x-2 sm:space-x-3">
+                    <span id="pageIndicator" class="text-sm sm:text-lg font-extrabold text-slate-800 bg-slate-100 px-3.5 py-2 rounded-xl border border-slate-200">
+                        <span id="currentPageNum">1</span> / <span id="totalPagesNum">4</span> 장
+                    </span>
+                    <button onclick="prevPage()" class="touch-btn px-4 py-2 bg-slate-100 hover:bg-amber-100 active:bg-amber-200 rounded-2xl text-slate-800 font-extrabold flex items-center space-x-1 border-2 border-slate-200">
+                        <i data-lucide="chevron-left" class="w-6 h-6"></i>
+                        <span class="hidden sm:inline">이전 장</span>
+                    </button>
+                    <button onclick="nextPage()" class="touch-btn px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 rounded-2xl text-white font-extrabold flex items-center space-x-1 shadow-md shadow-indigo-100">
+                        <span class="hidden sm:inline">다음 장</span>
+                        <i data-lucide="chevron-right" class="w-6 h-6"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Opened Book Spread Frame -->
+            <div id="albumBookWrapper" class="w-full animate-book-open">
+                <div id="bookSpreadContainer" class="w-full bg-stone-50 rounded-3xl shadow-2xl border-4 border-amber-900/20 min-h-[520px] flex flex-col md:flex-row overflow-hidden relative">
+                    
+                    <!-- Left Page -->
+                    <div id="leftPage" class="w-full md:w-1/2 p-4 sm:p-8 bg-gradient-to-br from-stone-100 to-white border-b-2 md:border-b-0 md:border-r-2 border-stone-200 flex flex-col justify-between">
+                        <div id="leftPageContent" class="h-full flex flex-col justify-center min-h-[320px]"></div>
+                    </div>
+
+                    <!-- Center Spine Shadow -->
+                    <div class="hidden md:block absolute top-0 bottom-0 left-1/2 -ml-3 w-6 bg-gradient-to-r from-black/10 via-black/5 to-transparent pointer-events-none z-20"></div>
+
+                    <!-- Right Page -->
+                    <div id="rightPage" class="w-full md:w-1/2 p-4 sm:p-8 bg-gradient-to-bl from-stone-100 to-white flex flex-col justify-between">
+                        <div id="rightPageContent" class="h-full flex flex-col justify-center min-h-[320px]"></div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- Bottom Navigation Bar -->
+            <div class="mt-8 flex items-center justify-between w-full max-w-lg px-2">
+                <button onclick="prevPage()" class="touch-btn px-6 py-3.5 bg-white hover:bg-slate-100 text-slate-900 text-sm sm:text-base font-extrabold rounded-2xl border-2 border-slate-300 shadow-sm flex items-center space-x-2">
+                    <i data-lucide="arrow-left" class="w-5 h-5 text-indigo-600"></i>
+                    <span>이전 장</span>
+                </button>
+                <div class="flex space-x-2" id="pageDotsContainer"></div>
+                <button onclick="nextPage()" class="touch-btn px-6 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm sm:text-base font-extrabold rounded-2xl shadow-md flex items-center space-x-2">
+                    <span>다음 장</span>
+                    <i data-lucide="arrow-right" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+        </section>
+    </main>
+
+    <!-- Modal: Add Custom / Drive Album -->
+    <div id="addAlbumModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden opacity-0 transition-opacity duration-300">
+        <div class="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl transform scale-95 transition-transform duration-300 max-h-[90vh] overflow-y-auto" id="addAlbumModalCard">
+            <div class="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
+                <div class="flex items-center space-x-3">
+                    <div class="p-3 bg-amber-100 text-amber-800 rounded-2xl">
+                        <i data-lucide="folder-plus" class="w-7 h-7"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-xl sm:text-2xl font-extrabold text-slate-900">새 앨범 (하위 폴더) 추가</h3>
+                        <p class="text-xs sm:text-sm font-bold text-slate-500">'부모님' 폴더 밑의 새로운 여행 수첩 만들기</p>
+                    </div>
+                </div>
+                <button onclick="closeAddAlbumModal()" class="touch-btn text-slate-400 hover:text-slate-700 p-2 rounded-2xl hover:bg-slate-100">
+                    <i data-lucide="x" class="w-7 h-7"></i>
+                </button>
+            </div>
+
+            <form id="albumForm" onsubmit="handleSaveAlbum(event)" class="space-y-5">
+                <div>
+                    <label class="block text-sm sm:text-base font-extrabold text-slate-800 mb-2">폴더명 (책 제목)</label>
+                    <input type="text" id="albumTitleInput" required placeholder="예: 2024 제주도 가족 여행" class="w-full px-4 py-3.5 text-base sm:text-lg rounded-2xl border-2 border-slate-200 focus:outline-none focus:border-indigo-600 font-bold">
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm sm:text-base font-extrabold text-slate-800 mb-2">날짜 / 연도</label>
+                        <input type="text" id="albumDateInput" required placeholder="예: 2024년 10월" class="w-full px-4 py-3.5 text-base rounded-2xl border-2 border-slate-200 focus:outline-none focus:border-indigo-600 font-bold">
+                    </div>
+                    <div>
+                        <label class="block text-sm sm:text-base font-extrabold text-slate-800 mb-2">책 표지 색상</label>
+                        <select id="albumColorInput" class="w-full px-4 py-3.5 text-base rounded-2xl border-2 border-slate-200 focus:outline-none focus:border-indigo-600 font-bold bg-white">
+                            <option value="from-emerald-700 to-teal-950">에메랄드 초록</option>
+                            <option value="from-indigo-700 to-slate-900">인디고 남색</option>
+                            <option value="from-amber-600 to-orange-950">따뜻한 나무색</option>
+                            <option value="from-rose-700 to-pink-950">단풍 붉은색</option>
+                            <option value="from-purple-700 to-slate-900">보라색</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm sm:text-base font-extrabold text-slate-800 mb-2">사진 및 동영상 올리기</label>
+                    <div class="flex space-x-6 mb-3 bg-slate-100 p-3 rounded-2xl border border-slate-200">
+                        <label class="flex items-center space-x-2 text-sm sm:text-base font-extrabold text-slate-800 cursor-pointer">
+                            <input type="radio" name="imageSourceType" value="urls" checked onclick="toggleImageInputMode('urls')" class="w-5 h-5 text-indigo-600">
+                            <span>인터넷 링크/구글드라이브 주소</span>
+                        </label>
+                        <label class="flex items-center space-x-2 text-sm sm:text-base font-extrabold text-slate-800 cursor-pointer">
+                            <input type="radio" name="imageSourceType" value="files" onclick="toggleImageInputMode('files')" class="w-5 h-5 text-indigo-600">
+                            <span>내 파일 직접 선택</span>
+                        </label>
+                    </div>
+
+                    <div id="urlInputContainer">
+                        <textarea id="albumUrlsInput" rows="3" placeholder="사진 주소나 영상 링크(.mp4 등)를 한 줄씩 입력해주세요." class="w-full px-4 py-3 rounded-2xl border-2 border-slate-200 focus:outline-none focus:border-indigo-600 text-xs sm:text-sm font-mono"></textarea>
+                    </div>
+
+                    <div id="fileInputContainer" class="hidden">
+                        <div class="border-3 border-dashed border-indigo-300 rounded-3xl p-6 text-center hover:bg-indigo-50/50 transition-colors cursor-pointer bg-slate-50" onclick="document.getElementById('albumFileInput').click()">
+                            <i data-lucide="upload-cloud" class="w-10 h-10 text-indigo-600 mx-auto mb-2"></i>
+                            <p class="text-sm sm:text-base font-extrabold text-slate-800">사진 및 동영상 파일 올리기</p>
+                            <p class="text-xs text-slate-500 mt-1">스마트폰이나 컴퓨터의 파일 여러 개 선택 가능</p>
+                            <input type="file" id="albumFileInput" multiple accept="image/*,video/*" class="hidden" onchange="handleFileSelect(event)">
+                        </div>
+                        <div id="selectedFilesSummary" class="text-xs sm:text-sm text-indigo-700 font-extrabold mt-2 text-center"></div>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm sm:text-base font-extrabold text-slate-800 mb-2">추억 한 줄 설명</label>
+                    <input type="text" id="albumMemoInput" placeholder="예: 부모님 환갑 기념 온 가족이 함께 한 여행" class="w-full px-4 py-3.5 text-base rounded-2xl border-2 border-slate-200 focus:outline-none focus:border-indigo-600 font-bold">
+                </div>
+
+                <div class="pt-4 flex space-x-4">
+                    <button type="button" onclick="closeAddAlbumModal()" class="touch-btn w-1/2 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-base sm:text-lg rounded-2xl">취소</button>
+                    <button type="submit" class="touch-btn w-1/2 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-base sm:text-lg rounded-2xl shadow-lg shadow-indigo-200">저장하기</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Lightbox Full-screen Image Viewer -->
+    <div id="lightboxModal" class="fixed inset-0 bg-slate-950/95 z-50 flex items-center justify-center p-3 hidden opacity-0 transition-opacity duration-300" onclick="closeLightbox()">
+        <img id="lightboxImg" src="" alt="큰 사진 보기" class="max-w-full max-h-[88vh] object-contain rounded-2xl shadow-2xl transition-transform duration-300">
+        <button class="absolute top-4 right-4 touch-btn bg-slate-800/80 text-white p-3 rounded-full hover:bg-slate-700">
+            <i data-lucide="x" class="w-8 h-8"></i>
+        </button>
+    </div>
+
+    <!-- Modal: Google Drive API Key & Client ID Settings -->
+    <div id="driveApiModal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden opacity-0 transition-opacity duration-300">
+        <div class="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl">
+            <div class="flex justify-between items-center mb-5 border-b border-slate-100 pb-3">
+                <div class="flex items-center space-x-3">
+                    <div class="p-3 bg-emerald-100 text-emerald-800 rounded-2xl">
+                        <i data-lucide="key" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-extrabold text-slate-900">구글 드라이브 API 설정</h3>
+                        <p class="text-xs text-slate-500 font-bold">'부모님' 폴더 자동 스캔용 키 입력</p>
+                    </div>
+                </div>
+                <button onclick="closeDriveApiConfigModal()" class="touch-btn text-slate-400 hover:text-slate-700 p-2 rounded-2xl">
+                    <i data-lucide="x" class="w-6 h-6"></i>
+                </button>
+            </div>
+
+            <form onsubmit="saveDriveApiKeys(event)" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-extrabold text-slate-800 mb-1">Google API Key</label>
+                    <input type="text" id="gApiKeyInput" required placeholder="AIzaSy..." class="w-full px-4 py-3 rounded-2xl border-2 border-slate-200 focus:outline-none focus:border-emerald-600 font-mono text-sm">
+                </div>
+                <div>
+                    <label class="block text-sm font-extrabold text-slate-800 mb-1">OAuth Client ID</label>
+                    <input type="text" id="gClientIdInput" required placeholder="12345...apps.googleusercontent.com" class="w-full px-4 py-3 rounded-2xl border-2 border-slate-200 focus:outline-none focus:border-emerald-600 font-mono text-sm">
+                </div>
+                
+                <div class="p-3 bg-amber-50 border border-amber-200 rounded-2xl text-xs font-bold text-amber-900 leading-relaxed">
+                    💡 설정 후 구글 로그인 창에서 승인하시면, 드라이브 내 <strong>'부모님'</strong> 폴더와 그 아래 모든 여행 폴더(사진/영상)를 실시간으로 가져와 책장에 자동으로 꽂아줍니다.
+                </div>
+
+                <div class="pt-2 flex space-x-3">
+                    <button type="button" onclick="closeDriveApiConfigModal()" class="touch-btn w-1/2 py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold rounded-2xl">취소</button>
+                    <button type="submit" class="touch-btn w-1/2 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-2xl shadow-lg shadow-emerald-200">저장 및 드라이브 연동</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Core App Logic -->
+    <script>
+        // Google Drive Integration State
+        // ▼▼ 부모님용 공개 모드: Apps Script 웹앱 주소(…/exec)를 넣으면 로그인 없이 자동 동기화됩니다 ▼▼
+        const PUBLIC_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw6L0OZjLxqAn6w1S0vw5RGUOJyi3uO1AGAo9m8GfZJskaSs-VCFEJ145a99DLrQTXA/exec'; // 배포한 Apps Script 웹앱 주소
+        const PUBLIC_MODE = !!PUBLIC_SCRIPT_URL;
+        let gApiKey = localStorage.getItem('g_api_key') || '';
+        let gClientId = localStorage.getItem('g_client_id') || '';
+        let tokenClient = null;
+        let accessToken = null;
+        let tokenExpiry = 0, tokenResolver = null;
+        const blobCache = {};
+
+        // Sample Initial Albums Structure matching '/부모님/' Google Drive Folders
+        const defaultAlbums = [
+            {
+                id: 'album-1',
+                title: '스위스 가족 여행',
+                date: '2024년 8월',
+                color: 'from-emerald-800 to-teal-950',
+                memo: '만년설산과 푸른 들판을 걸었던 맑은 날의 기억',
+                items: [
+                    { type: 'image', url: 'https://images.unsplash.com/photo-1531366936337-7c912a4589a7?auto=format&fit=crop&w=1200&q=80' },
+                    { type: 'video', url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4', title: '알프스 산맥 풍경 영상' },
+                    { type: 'image', url: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1200&q=80' }
+                ]
+            },
+            {
+                id: 'album-2',
+                title: '부모님 환갑 잔치',
+                date: '2024년 5월',
+                color: 'from-amber-700 to-orange-950',
+                memo: '온 가족이 모여 웃음꽃을 피운 뜻깊은 날',
+                items: [
+                    { type: 'image', url: 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?auto=format&fit=crop&w=1200&q=80' },
+                    { type: 'video', url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4', title: '환갑 잔치 축하 영상' }
+                ]
+            }
+        ];
+
+        let albums = [];
+        let currentAlbum = null;
+        let currentPageIndex = 0;
+        let uploadedFilesData = [];
+        let isLargeFont = false;
+
+        window.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            loadAlbums();
+            renderBookshelf();
+        });
+        window.addEventListener('load', () => {
+            if (PUBLIC_MODE) { startPublicSync(); return; }
+            if (gApiKey && gClientId) {
+                initGoogleDriveAuth(!!localStorage.getItem('g_connected'));
+            }
+        });
+
+        function openDriveApiConfigModal() {
+            if (gApiKey && gClientId && tokenClient) { tokenClient.requestAccessToken({ prompt: '' }); return; }
+            document.getElementById('gApiKeyInput').value = gApiKey;
+            document.getElementById('gClientIdInput').value = gClientId;
+            const modal = document.getElementById('driveApiModal');
+            modal.classList.remove('hidden');
+            setTimeout(() => modal.classList.remove('opacity-0'), 10);
+        }
+
+        function closeDriveApiConfigModal() {
+            const modal = document.getElementById('driveApiModal');
+            modal.classList.add('opacity-0');
+            setTimeout(() => modal.classList.add('hidden'), 300);
+        }
+
+        function saveDriveApiKeys(e) {
+            e.preventDefault();
+            gApiKey = document.getElementById('gApiKeyInput').value.trim();
+            gClientId = document.getElementById('gClientIdInput').value.trim();
+            
+            localStorage.setItem('g_api_key', gApiKey);
+            localStorage.setItem('g_client_id', gClientId);
+
+            closeDriveApiConfigModal();
+            initGoogleDriveAuth(true);
+        }
+
+        // Initialize Google Drive Identity Services Client with Key & ClientID
+        function initGoogleDriveAuth(autoTrigger = false) {
+            if (!gClientId || !gApiKey) {
+                openDriveApiConfigModal();
+                return;
+            }
+
+            if (window.google && window.google.accounts) {
+                tokenClient = google.accounts.oauth2.initTokenClient({
+                    client_id: gClientId,
+                    scope: 'https://www.googleapis.com/auth/drive.readonly',
+                    callback: async (response) => {
+                        if (response.error !== undefined) {
+                            alert('구글 계정 연동 권한 승인 중 오류가 발생했습니다.');
+                            return;
+                        }
+                        accessToken = response.access_token;
+                        tokenExpiry = Date.now() + (response.expires_in - 60) * 1000;
+                        localStorage.setItem('g_connected', '1');
+                        if (tokenResolver) { tokenResolver(accessToken); tokenResolver = null; return; }
+                        document.getElementById('driveConnectText').textContent = '드라이브 동기화 중...';
+                        await fetchParentsDriveFolders();
+                        document.getElementById('driveConnectText').textContent = '드라이브 동기화 완료';
+                        document.getElementById('connectDriveBtn').classList.replace('bg-emerald-600', 'bg-blue-600');
+                    },
+                });
+
+                if (autoTrigger) {
+                    tokenClient.requestAccessToken({ prompt: localStorage.getItem('g_connected') ? '' : 'consent' });
+                }
+            }
+        }
+
+        // Fetch '/부모님/' folder & Subfolders from Google Drive API
+        async function fetchParentsDriveFolders() {
+            if (!accessToken || !gApiKey) return;
+            try {
+                // 1. Search for '부모님' root folder in Google Drive
+                const q = "name = '부모님' and mimeType = 'application/vnd.google-apps.folder' and trashed = false";
+                const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&key=${gApiKey}`, {
+                    headers: { Authorization: `Bearer ${accessToken}` }
+                });
+                const data = await res.json();
+                
+                if (data.files && data.files.length > 0) {
+                    const parentsFolderId = data.files[0].id;
+                    await fetchSubfoldersAsBooks(parentsFolderId);
+                } else {
+                    alert("구글 드라이브 내 최상위 위치에서 '부모님' 폴더를 찾을 수 없습니다. 드라이브에 '부모님' 폴더를 생성하고 사진/영상 폴더를 넣어주세요.");
+                }
+            } catch (err) {
+                console.error("Drive API Error:", err);
+                alert("드라이브 데이터를 가져오는 도중 오류가 발생했습니다. API Key를 확인해주세요.");
+            }
+        }
+
+        // Fetch each subfolder under '부모님' and turn it into a Book Title
+        async function fetchSubfoldersAsBooks(parentsFolderId) {
+            const q = `'${parentsFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
+            const data = { files: await driveList(q, 'files(id,name)', 'name') };
+
+            if (data.files && data.files.length > 0) {
+                const colors = [
+                    'from-emerald-800 to-teal-950',
+                    'from-indigo-700 to-slate-900',
+                    'from-amber-700 to-orange-950',
+                    'from-rose-700 to-pink-950',
+                    'from-purple-800 to-slate-950'
+                ];
+                
+                const driveAlbums = [];
+                for (let i = 0; i < data.files.length; i++) {
+                    const subfolder = data.files[i];
+                    const items = await fetchFolderItems(subfolder.id);
+                    driveAlbums.push({
+                        id: 'drive-' + subfolder.id,
+                        title: subfolder.name,
+                        date: '구글드라이브 앨범',
+                        color: colors[i % colors.length],
+                        memo: `'부모님/${subfolder.name}' 폴더에서 읽어온 추억 앨범`,
+                        items: items
+                    });
+                }
+                albums = [...driveAlbums, ...albums.filter(a => !String(a.id).startsWith('drive-'))];
+                saveAlbumsToStorage();
+                renderBookshelf();
+            } else {
+                alert("'부모님' 폴더 안에 하위 여행/사진 폴더가 존재하지 않습니다.");
+            }
+        }
+
+        // Fetch media items inside each book's subfolder
+        async function startPublicSync() {
+            document.getElementById('connectDriveBtn').classList.add('hidden');
+            try {
+                const data = await (await fetch(PUBLIC_SCRIPT_URL)).json();
+                const colors = ['from-emerald-800 to-teal-950','from-indigo-700 to-slate-900','from-amber-700 to-orange-950','from-rose-700 to-pink-950','from-purple-800 to-slate-950'];
+                const fromDrive = (data.books || []).map((b, i) => ({
+                    id: 'drive-' + b.id, title: b.title, date: b.date || '드라이브 앨범', color: colors[i % colors.length],
+                    memo: `'${b.title}' 폴더의 추억 앨범`,
+                    items: b.items.map(f => f.type === 'video'
+                        ? { type: 'video', driveId: f.id, title: f.name, url: `https://drive.google.com/file/d/${f.id}/preview` }
+                        : { type: 'image', driveId: f.id, title: f.name, url: `https://drive.google.com/thumbnail?id=${f.id}&sz=w1600` })
+                }));
+                if (fromDrive.length) {
+                    albums = [...fromDrive, ...albums.filter(a => !String(a.id).startsWith('drive-') && !String(a.id).startsWith('album-'))];
+                    saveAlbumsToStorage();
+                    renderBookshelf();
+                }
+            } catch (e) { console.error(e); }
+        }
+        async function requestToken() {
+            return new Promise(res => { tokenResolver = res; tokenClient.requestAccessToken({ prompt: '' }); });
+        }
+        async function driveFetch(url) {
+            if (PUBLIC_MODE) return fetch(url);
+            if (!accessToken || Date.now() > tokenExpiry) await requestToken();
+            let r = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+            if (r.status === 401) { await requestToken(); r = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } }); }
+            return r;
+        }
+        async function driveList(q, fields, orderBy) {
+            let files = [], pageToken = '';
+            do {
+                const u = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&key=${gApiKey}&pageSize=200&orderBy=${orderBy}&fields=nextPageToken,${encodeURIComponent(fields)}` + (pageToken ? `&pageToken=${pageToken}` : '');
+                const d = await (await driveFetch(u)).json();
+                files = files.concat(d.files || []);
+                pageToken = d.nextPageToken || '';
+            } while (pageToken);
+            return files;
+        }
+        async function fetchFolderItems(folderId) {
+            const q = `'${folderId}' in parents and trashed = false and (mimeType contains 'image/' or mimeType contains 'video/')`;
+            const files = await driveList(q, 'files(id,name,mimeType)', 'name');
+            if (PUBLIC_MODE) return files.map(f => {
+                const v = f.mimeType.startsWith('video/');
+                return { type: v ? 'video' : 'image', driveId: f.id, title: f.name,
+                    url: v ? `https://drive.google.com/file/d/${f.id}/preview` : `https://drive.google.com/thumbnail?id=${f.id}&sz=w1600` };
+            });
+            return files.map(f => ({ type: f.mimeType.startsWith('video/') ? 'video' : 'image', url: 'drive://' + f.id, driveId: f.id, title: f.name }));
+        }
+        async function getDriveBlobUrl(id) {
+            if (blobCache[id]) return blobCache[id];
+            const r = await driveFetch(`https://www.googleapis.com/drive/v3/files/${id}?alt=media&key=${gApiKey}`);
+            if (!r.ok) throw new Error('media ' + r.status);
+            return blobCache[id] = URL.createObjectURL(await r.blob());
+        }
+        function hydrateDriveMedia() {
+            document.querySelectorAll('[data-drive-id]').forEach(async el => {
+                try {
+                    el.src = await getDriveBlobUrl(el.dataset.driveId);
+                    if (el.tagName === 'SOURCE') el.parentElement.load();
+                } catch (e) { console.error(e); }
+            });
+        }
+        const _renderMediaItemBase = renderMediaItem;
+        renderMediaItem = function (item) {
+            let html = _renderMediaItemBase(item);
+            if (PUBLIC_MODE && item && item.type === 'video' && item.driveId)
+                return html.replace(/<video[\s\S]*?<\/video>/, `<iframe src="${item.url}" allow="autoplay; fullscreen" allowfullscreen class="w-full h-[300px] sm:h-[360px] rounded-xl bg-black border-0"></iframe>`);
+            if (!PUBLIC_MODE && item && item.driveId) html = html.replace(`src="${item.url}"`, `src="" data-drive-id="${item.driveId}"`);
+            return html;
+        };
+        const _openLightboxBase = openLightbox;
+        openLightbox = async function (src) {
+            if (String(src).startsWith('drive://')) src = await getDriveBlobUrl(src.slice(8));
+            _openLightboxBase(src);
+        };
+
+        function simulateParentsFolderSync(folderId) {
+            alert(`'부모님' 폴더(${folderId}) 연동 완료! 하위 폴더 3개가 서재 책장에 성공적으로 등록되었습니다.`);
+            renderBookshelf();
+        }
+
+        function toggleFontScale() {
+            isLargeFont = !isLargeFont;
+            const root = document.documentElement;
+            const label = document.getElementById('fontScaleLabel');
+
+            if (isLargeFont) {
+                root.style.setProperty('--text-scale', '1.25');
+                label.textContent = '글씨 보통';
+            } else {
+                root.style.setProperty('--text-scale', '1');
+                label.textContent = '글씨 크게';
+            }
+        }
+
+        function loadAlbums() {
+            const stored = localStorage.getItem('parents_memory_albums_v1');
+            if (stored) {
+                try {
+                    albums = JSON.parse(stored);
+                } catch(e) {
+                    albums = [...defaultAlbums];
+                }
+            } else {
+                albums = [...defaultAlbums];
+            }
+        }
+
+        function saveAlbumsToStorage() {
+            localStorage.setItem('parents_memory_albums_v1', JSON.stringify(albums));
+        }
+
+        function renderBookshelf() {
+            const row1 = document.getElementById('shelfRow1');
+            const row2 = document.getElementById('shelfRow2');
+            row1.innerHTML = '';
+            row2.innerHTML = '';
+
+            albums.forEach((album, index) => {
+                const bookElem = createBookSpineElement(album);
+                if (index % 2 === 0) {
+                    row1.appendChild(bookElem);
+                } else {
+                    row2.appendChild(bookElem);
+                }
+            });
+
+            lucide.createIcons();
+        }
+
+        function createBookSpineElement(album) {
+            const button = document.createElement('button');
+            button.className = `book-spine-card relative flex-shrink-0 bg-gradient-to-b ${album.color} text-white rounded-r-2xl shadow-2xl flex flex-col justify-between items-center py-4 px-2 border-l-4 border-white/30 focus:outline-none`;
+            button.onclick = () => openAlbumViewer(album.id);
+
+            button.innerHTML = `
+                <div class="text-[0.7rem] sm:text-xs font-extrabold text-amber-200 tracking-wider">${album.date.split('년')[0]}</div>
+                <div class="spine-text-container text-sm sm:text-base font-bold font-book-title text-slate-100 my-auto py-2 leading-relaxed">
+                    ${album.title}
+                </div>
+                <div class="w-3.5 h-3.5 rounded-full bg-amber-400 shadow-md"></div>
+            `;
+            return button;
+        }
+
+        function openAlbumViewer(albumId) {
+            currentAlbum = albums.find(a => a.id === albumId);
+            if (!currentAlbum) return;
+
+            currentPageIndex = 0;
+
+            const shelfSec = document.getElementById('bookshelfSection');
+            const viewerSec = document.getElementById('albumViewerSection');
+            const backBtn = document.getElementById('backToShelfBtn');
+            const addBtn = document.getElementById('addAlbumBtn');
+
+            shelfSec.classList.add('opacity-0');
+            setTimeout(() => {
+                shelfSec.classList.add('hidden');
+                
+                document.getElementById('viewerAlbumTitle').textContent = currentAlbum.title;
+                document.getElementById('viewerDate').textContent = currentAlbum.date;
+
+                viewerSec.classList.remove('hidden');
+                setTimeout(() => {
+                    viewerSec.classList.remove('opacity-0');
+                    viewerSec.classList.add('opacity-100');
+                }, 50);
+
+                backBtn.classList.remove('hidden');
+                addBtn.classList.add('hidden');
+
+                renderAlbumPages();
+            }, 300);
+        }
+
+        function showBookshelfView() {
+            const shelfSec = document.getElementById('bookshelfSection');
+            const viewerSec = document.getElementById('albumViewerSection');
+            const backBtn = document.getElementById('backToShelfBtn');
+            const addBtn = document.getElementById('addAlbumBtn');
+
+            viewerSec.classList.add('opacity-0');
+            setTimeout(() => {
+                viewerSec.classList.add('hidden');
+                shelfSec.classList.remove('hidden');
+                
+                setTimeout(() => {
+                    shelfSec.classList.remove('opacity-0');
+                    shelfSec.classList.add('opacity-100');
+                }, 50);
+
+                backBtn.classList.add('hidden');
+                addBtn.classList.remove('hidden');
+            }, 300);
+        }
+
+        function getTotalPageSpreads() {
+            if (!currentAlbum || !currentAlbum.items) return 1;
+            return 1 + Math.ceil(currentAlbum.items.length / 2);
+        }
+
+        function renderMediaItem(item) {
+            if (!item) return `<div class="h-full flex items-center justify-center text-slate-400 font-bold">페이지의 끝입니다.</div>`;
+
+            if (item.type === 'video') {
+                return `
+                    <div class="w-full h-full flex flex-col justify-center items-center bg-slate-900 rounded-2xl overflow-hidden shadow-xl border-2 border-slate-700 p-2">
+                        <div class="flex items-center space-x-2 text-white text-xs sm:text-sm font-bold mb-2">
+                            <i data-lucide="video" class="w-4 h-4 text-amber-400"></i>
+                            <span>${item.title || '여행 동영상'}</span>
+                        </div>
+                        <video controls class="w-full max-h-[300px] sm:max-h-[360px] rounded-xl object-contain bg-black">
+                            <source src="${item.url}" type="video/mp4">
+                            이 브라우저는 비디오 재생을 지원하지 않습니다.
+                        </video>
+                    </div>
+                `;
+            } else {
+                return `
+                    <div class="group relative overflow-hidden rounded-2xl shadow-xl border-2 border-slate-200 cursor-pointer h-full min-h-[260px]" onclick="openLightbox('${item.url}')">
+                        <img src="${item.url}" class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" alt="사진" onerror="this.src='https://placehold.co/600x400/e2e8f0/64748b?text=사진을+불러올+수+없음'">
+                        <div class="absolute bottom-3 right-3 bg-black/75 text-white px-3 py-1.5 rounded-xl text-xs font-bold flex items-center space-x-1">
+                            <i data-lucide="zoom-in" class="w-4 h-4"></i>
+                            <span>크게 보기</span>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function renderAlbumPages() {
+            const leftPage = document.getElementById('leftPageContent');
+            const rightPage = document.getElementById('rightPageContent');
+            const totalSpreads = getTotalPageSpreads();
+
+            document.getElementById('currentPageNum').textContent = currentPageIndex + 1;
+            document.getElementById('totalPagesNum').textContent = totalSpreads;
+
+            renderPaginationDots(totalSpreads);
+
+            if (currentPageIndex === 0) {
+                leftPage.innerHTML = `
+                    <div class="h-full flex flex-col justify-center items-center text-center p-6 border-4 border-double border-amber-200 rounded-3xl bg-amber-50/50 my-auto">
+                        <span class="text-xs sm:text-sm font-extrabold text-amber-900 mb-2">${currentAlbum.date}</span>
+                        <h2 class="text-2xl sm:text-3xl font-extrabold font-book-title text-slate-900 mb-4 leading-tight">${currentAlbum.title}</h2>
+                        <p class="text-sm sm:text-base text-slate-700 font-bold leading-relaxed italic max-w-sm">"${currentAlbum.memo || '행복했던 여행의 사진과 영상들이 담겨있습니다.'}"</p>
+                        <div class="mt-6 text-xs sm:text-sm font-extrabold text-slate-500">총 ${currentAlbum.items.length}개의 항목 (사진/영상)</div>
+                    </div>
+                `;
+
+                if (currentAlbum.items.length > 0) {
+                    rightPage.innerHTML = renderMediaItem(currentAlbum.items[0]);
+                } else {
+                    rightPage.innerHTML = `<div class="text-center text-slate-400 font-bold">등록된 자료가 없습니다.</div>`;
+                }
+
+            } else {
+                const itemIndex1 = (currentPageIndex - 1) * 2 + 1;
+                const itemIndex2 = itemIndex1 + 1;
+
+                leftPage.innerHTML = renderMediaItem(currentAlbum.items[itemIndex1]);
+                rightPage.innerHTML = renderMediaItem(currentAlbum.items[itemIndex2]);
+            }
+
+            lucide.createIcons();
+            hydrateDriveMedia();
+        }
+
+        function renderPaginationDots(totalSpreads) {
+            const container = document.getElementById('pageDotsContainer');
+            container.innerHTML = '';
+            for (let i = 0; i < totalSpreads; i++) {
+                const dot = document.createElement('button');
+                dot.className = `touch-btn w-3 h-3 rounded-full transition-all ${i === currentPageIndex ? 'bg-indigo-600 w-8' : 'bg-slate-300 hover:bg-slate-400'}`;
+                dot.onclick = () => {
+                    currentPageIndex = i;
+                    renderAlbumPages();
+                };
+                container.appendChild(dot);
+            }
+        }
+
+        function nextPage() {
+            const totalSpreads = getTotalPageSpreads();
+            if (currentPageIndex < totalSpreads - 1) {
+                currentPageIndex++;
+                renderAlbumPages();
+            }
+        }
+
+        function prevPage() {
+            if (currentPageIndex > 0) {
+                currentPageIndex--;
+                renderAlbumPages();
+            }
+        }
+
+        function openAddAlbumModal() {
+            const modal = document.getElementById('addAlbumModal');
+            const card = document.getElementById('addAlbumModalCard');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                card.classList.remove('scale-95');
+                card.classList.add('scale-100');
+            }, 10);
+        }
+
+        function closeAddAlbumModal() {
+            const modal = document.getElementById('addAlbumModal');
+            const card = document.getElementById('addAlbumModalCard');
+            modal.classList.add('opacity-0');
+            card.classList.remove('scale-100');
+            card.classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                document.getElementById('albumForm').reset();
+                uploadedFilesData = [];
+                document.getElementById('selectedFilesSummary').textContent = '';
+                toggleImageInputMode('urls');
+            }, 300);
+        }
+
+        function toggleImageInputMode(mode) {
+            const urlContainer = document.getElementById('urlInputContainer');
+            const fileContainer = document.getElementById('fileInputContainer');
+            if (mode === 'urls') {
+                urlContainer.classList.remove('hidden');
+                fileContainer.classList.add('hidden');
+            } else {
+                urlContainer.classList.add('hidden');
+                fileContainer.classList.remove('hidden');
+            }
+        }
+
+        function handleFileSelect(event) {
+            const files = Array.from(event.target.files);
+            uploadedFilesData = [];
+            const summary = document.getElementById('selectedFilesSummary');
+            
+            if (files.length === 0) {
+                summary.textContent = '';
+                return;
+            }
+
+            summary.textContent = `${files.length}개의 파일 로딩 중...`;
+
+            let loadedCount = 0;
+            files.forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const isVideo = file.type.startsWith('video/');
+                    uploadedFilesData.push({
+                        type: isVideo ? 'video' : 'image',
+                        url: e.target.result,
+                        title: file.name
+                    });
+                    loadedCount++;
+                    if (loadedCount === files.length) {
+                        summary.textContent = `총 ${files.length}개의 사진/동영상이 준비되었습니다!`;
+                    }
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function handleSaveAlbum(e) {
+            e.preventDefault();
+            const title = document.getElementById('albumTitleInput').value.trim();
+            const date = document.getElementById('albumDateInput').value.trim();
+            const color = document.getElementById('albumColorInput').value;
+            const memo = document.getElementById('albumMemoInput').value.trim();
+            const mode = document.querySelector('input[name="imageSourceType"]:checked').value;
+
+            let items = [];
+            if (mode === 'urls') {
+                const urlsText = document.getElementById('albumUrlsInput').value.trim();
+                if (urlsText) {
+                    const lines = urlsText.split('\n').map(u => u.trim()).filter(u => u.length > 0);
+                    items = lines.map(url => {
+                        const isVid = url.endsWith('.mp4') || url.endsWith('.mov') || url.includes('video');
+                        return { type: isVid ? 'video' : 'image', url: url };
+                    });
+                }
+            } else {
+                items = [...uploadedFilesData];
+            }
+
+            if (items.length === 0) {
+                items = [
+                    { type: 'image', url: 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1200&q=80' },
+                    { type: 'video', url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4' }
+                ];
+            }
+
+            const newAlbum = {
+                id: 'album-' + Date.now(),
+                title,
+                date,
+                color,
+                memo,
+                items
+            };
+
+            albums.unshift(newAlbum);
+            saveAlbumsToStorage();
+            renderBookshelf();
+            closeAddAlbumModal();
+        }
+
+        function openLightbox(imgSrc) {
+            const modal = document.getElementById('lightboxModal');
+            const img = document.getElementById('lightboxImg');
+            img.src = imgSrc;
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+            }, 10);
+        }
+
+        function closeLightbox() {
+            const modal = document.getElementById('lightboxModal');
+            modal.classList.add('opacity-0');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+    </script>
+</body>
+</html>
