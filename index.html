@@ -25,6 +25,7 @@
         }
         .text-xs, [class*="text-[0."] { font-size: 1.1rem !important; line-height: 1.5 !important; }
         .text-sm { font-size: 1.2rem !important; line-height: 1.5 !important; }
+        html, body { max-width: 100%; overflow-x: hidden; }
         #fontScaleBtn, #connectDriveBtn { display: none !important; }
         .public #addAlbumBtn { display: none !important; }
 
@@ -651,8 +652,8 @@
         }
         function driveImgFallback(img) {
             const id = img.dataset.id, step = +(img.dataset.step || 0);
-            const alts = [`https://lh3.googleusercontent.com/d/${id}=w1600`, `https://drive.google.com/uc?export=view&id=${id}`];
-            if (step < alts.length) { img.dataset.step = step + 1; img.src = alts[step]; return; }
+            const alts = [`https://drive.google.com/thumbnail?id=${id}&sz=w1600&t=${Date.now()}`, `https://lh3.googleusercontent.com/d/${id}=w1600`, `https://drive.google.com/uc?export=view&id=${id}`];
+            if (step < alts.length) { img.dataset.step = step + 1; setTimeout(() => { img.src = alts[step]; }, 800); return; }
             img.style.display = 'none';
             img.parentElement.insertAdjacentHTML('afterbegin', '<div class="p-6 text-center text-xl font-bold text-slate-500">사진을 불러오지 못했어요<br><span class="text-base">드라이브 폴더가 "링크가 있는 모든 사용자"로 공유되어 있는지 확인해 주세요</span></div>');
         }
@@ -878,9 +879,11 @@
         function renderPaginationDots(totalSpreads) {
             const container = document.getElementById('pageDotsContainer');
             container.innerHTML = '';
+            container.style.display = totalSpreads > 10 ? 'none' : '';
+            if (totalSpreads > 10) return;
             for (let i = 0; i < totalSpreads; i++) {
                 const dot = document.createElement('button');
-                dot.className = `touch-btn w-3 h-3 rounded-full transition-all ${i === currentPageIndex ? 'bg-indigo-600 w-8' : 'bg-slate-300 hover:bg-slate-400'}`;
+                dot.className = `flex-shrink-0 w-3 h-3 rounded-full transition-all ${i === currentPageIndex ? 'bg-indigo-600 w-8' : 'bg-slate-300 hover:bg-slate-400'}`;
                 dot.onclick = () => {
                     currentPageIndex = i;
                     renderAlbumPages();
