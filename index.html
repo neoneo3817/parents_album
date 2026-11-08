@@ -25,7 +25,7 @@
         }
         .text-xs, [class*="text-[0."] { font-size: 1.1rem !important; line-height: 1.5 !important; }
         .text-sm { font-size: 1.2rem !important; line-height: 1.5 !important; }
-        #fontScaleBtn { display: none !important; }
+        #fontScaleBtn, #connectDriveBtn { display: none !important; }
         .public #addAlbumBtn { display: none !important; }
 
         body {
@@ -63,7 +63,8 @@
             cursor: pointer;
             transform-origin: bottom center;
             min-height: 19rem;
-            width: clamp(7.5rem, 22vw, 9.5rem);
+            width: auto;
+            min-width: 3.8rem;
         }
 
         .book-spine-card:hover, .book-spine-card:focus-visible {
@@ -80,6 +81,7 @@
             max-height: 14rem;
             font-size: 1.4rem;
             line-height: 1.35;
+            max-width: 4.4rem;
             overflow: hidden;
             text-overflow: ellipsis;
         }
@@ -647,6 +649,13 @@
             if (!r.ok) throw new Error('media ' + r.status);
             return blobCache[id] = URL.createObjectURL(await r.blob());
         }
+        function driveImgFallback(img) {
+            const id = img.dataset.id, step = +(img.dataset.step || 0);
+            const alts = [`https://lh3.googleusercontent.com/d/${id}=w1600`, `https://drive.google.com/uc?export=view&id=${id}`];
+            if (step < alts.length) { img.dataset.step = step + 1; img.src = alts[step]; return; }
+            img.style.display = 'none';
+            img.parentElement.insertAdjacentHTML('afterbegin', '<div class="p-6 text-center text-xl font-bold text-slate-500">사진을 불러오지 못했어요<br><span class="text-base">드라이브 폴더가 "링크가 있는 모든 사용자"로 공유되어 있는지 확인해 주세요</span></div>');
+        }
         function hydrateDriveMedia() {
             document.querySelectorAll('[data-drive-id]').forEach(async el => {
                 try {
@@ -658,6 +667,8 @@
         const _renderMediaItemBase = renderMediaItem;
         renderMediaItem = function (item) {
             let html = _renderMediaItemBase(item);
+            if (PUBLIC_MODE && item && item.type === 'image' && item.driveId)
+                return `<div class="relative overflow-hidden rounded-2xl shadow-xl border-2 border-slate-200 cursor-pointer h-full min-h-[260px] bg-slate-100 flex items-center justify-center" onclick="openLightbox('${item.url}')"><img src="${item.url}" referrerpolicy="no-referrer" data-id="${item.driveId}" class="w-full h-full object-cover" alt="사진" onerror="driveImgFallback(this)"><div class="absolute bottom-3 right-3 bg-black/75 text-white px-3 py-1.5 rounded-xl text-xs font-bold">크게 보기</div></div>`;
             if (PUBLIC_MODE && item && item.type === 'video' && item.driveId)
                 return html.replace(/<video[\s\S]*?<\/video>/, `<iframe src="${item.url}" allow="autoplay; fullscreen" allowfullscreen class="w-full h-[300px] sm:h-[360px] rounded-xl bg-black border-0"></iframe>`);
             if (!PUBLIC_MODE && item && item.driveId) html = html.replace(`src="${item.url}"`, `src="" data-drive-id="${item.driveId}"`);
@@ -706,22 +717,19 @@
         }
 
         function renderBookshelf() {
-            const row1 = document.getElementById('shelfRow1');
-            const row2 = document.getElementById('shelfRow2');
-            row1.innerHTML = '';
-            row2.innerHTML = '';
-
-            albums.forEach((album, index) => {
-                const bookElem = createBookSpineElement(album);
-                if (index % 2 === 0) {
-                    row1.appendChild(bookElem);
-                } else {
-                    row2.appendChild(bookElem);
-                }
-            });
-
+            const frame = document.getElementById('bookshelfFrame');
+            const tiers = Math.max(2, Math.ceil(albums.length / 3));
+            frame.innerHTML = Array.from({ length: tiers }, (_, i) => `
+                <div class="shelf-layer ${i < tiers - 1 ? 'mb-12 sm:mb-16' : ''}">
+                    <div class="flex items-end justify-start space-x-4 sm:space-x-8 min-h-[17rem] px-4 pb-3 border-b-8 border-amber-900 rounded-b-sm relative">
+                        <div class="absolute -bottom-4 left-0 right-0 h-4 shelf-board rounded-sm"></div>
+                        <div class="shelf-row flex items-end space-x-4 sm:space-x-8 z-10 w-full overflow-x-auto pt-4 pb-2"></div>
+                    </div>
+                </div>`).join('');
+            const rows = frame.querySelectorAll('.shelf-row');
+            albums.forEach((album, index) => rows[Math.floor(index / 3)].appendChild(createBookSpineElement(album)));
             if (!albums.length) {
-                row1.innerHTML = PUBLIC_MODE && syncing
+                rows[0].innerHTML = PUBLIC_MODE && syncing
                     ? '<div class="w-full text-center py-16 text-2xl font-extrabold text-amber-900 animate-pulse">📚 책장을 불러오고 있어요<br><span class="text-lg font-bold text-slate-600">잠시만 기다려 주세요</span></div>'
                     : '<div class="w-full text-center py-16 text-xl font-extrabold text-slate-500">아직 꽂힌 책이 없어요</div>';
             }
