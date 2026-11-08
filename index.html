@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ko" class="text-[16px] sm:text-[18px]">
+<html lang="ko">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -17,12 +17,16 @@
         :root {
             --font-main: 'Pretendard', system-ui, -apple-system, sans-serif;
             --font-book: 'Gowun Batang', serif;
-            --text-scale: 1;
+            --text-scale: 1.4;
         }
 
         html {
             font-size: calc(16px * var(--text-scale));
         }
+        .text-xs, [class*="text-[0."] { font-size: 1.1rem !important; line-height: 1.5 !important; }
+        .text-sm { font-size: 1.2rem !important; line-height: 1.5 !important; }
+        #fontScaleBtn { display: none !important; }
+        .public #addAlbumBtn { display: none !important; }
 
         body {
             font-family: var(--font-main);
@@ -58,8 +62,8 @@
             transition: transform 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.35s ease;
             cursor: pointer;
             transform-origin: bottom center;
-            min-height: 16rem;
-            width: clamp(6rem, 16vw, 8rem);
+            min-height: 19rem;
+            width: clamp(7.5rem, 22vw, 9.5rem);
         }
 
         .book-spine-card:hover, .book-spine-card:focus-visible {
@@ -73,7 +77,9 @@
             writing-mode: vertical-rl;
             text-orientation: mixed;
             letter-spacing: 0.08em;
-            max-height: 11.5rem;
+            max-height: 14rem;
+            font-size: 1.4rem;
+            line-height: 1.35;
             overflow: hidden;
             text-overflow: ellipsis;
         }
@@ -397,8 +403,9 @@
     <script>
         // Google Drive Integration State
         // ▼▼ 부모님용 공개 모드: Apps Script 웹앱 주소(…/exec)를 넣으면 로그인 없이 자동 동기화됩니다 ▼▼
-        const PUBLIC_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw6L0OZjLxqAn6w1S0vw5RGUOJyi3uO1AGAo9m8GfZJskaSs-VCFEJ145a99DLrQTXA/exec'; // 배포한 Apps Script 웹앱 주소
+        const PUBLIC_SCRIPT_URL = ''; // 배포한 Apps Script 웹앱 주소
         const PUBLIC_MODE = !!PUBLIC_SCRIPT_URL;
+        let syncing = PUBLIC_MODE;
         let gApiKey = localStorage.getItem('g_api_key') || '';
         let gClientId = localStorage.getItem('g_client_id') || '';
         let tokenClient = null;
@@ -442,6 +449,8 @@
         window.addEventListener('DOMContentLoaded', () => {
             lucide.createIcons();
             loadAlbums();
+            if (PUBLIC_MODE) document.body.classList.add('public');
+            if (PUBLIC_MODE) albums = albums.filter(a => a.id !== 'album-1' && a.id !== 'album-2');
             renderBookshelf();
         });
         window.addEventListener('load', () => {
@@ -574,6 +583,8 @@
             document.getElementById('connectDriveBtn').classList.add('hidden');
             try {
                 const data = await (await fetch(PUBLIC_SCRIPT_URL)).json();
+                if (data.error) throw new Error(data.error === 'folder not found' ? "드라이브에서 '부모님' 폴더를 찾지 못했어요" : data.error);
+                if (!data.books || !data.books.length) throw new Error("'부모님' 폴더 안에 하위 폴더(책)가 없어요");
                 const colors = ['from-emerald-800 to-teal-950','from-indigo-700 to-slate-900','from-amber-700 to-orange-950','from-rose-700 to-pink-950','from-purple-800 to-slate-950'];
                 const fromDrive = (data.books || []).map((b, i) => ({
                     id: 'drive-' + b.id, title: b.title, date: b.date || '드라이브 앨범', color: colors[i % colors.length],
@@ -582,12 +593,23 @@
                         ? { type: 'video', driveId: f.id, title: f.name, url: `https://drive.google.com/file/d/${f.id}/preview` }
                         : { type: 'image', driveId: f.id, title: f.name, url: `https://drive.google.com/thumbnail?id=${f.id}&sz=w1600` })
                 }));
+                syncing = false;
                 if (fromDrive.length) {
-                    albums = [...fromDrive, ...albums.filter(a => !String(a.id).startsWith('drive-') && !String(a.id).startsWith('album-'))];
+                    albums = [...fromDrive, ...albums.filter(a => !String(a.id).startsWith('drive-') && a.id !== 'album-1' && a.id !== 'album-2')];
                     saveAlbumsToStorage();
                     renderBookshelf();
                 }
-            } catch (e) { console.error(e); }
+            } catch (e) {
+                console.error(e);
+                syncing = false;
+                albums = albums.filter(a => a.id !== 'album-1' && a.id !== 'album-2');
+                renderBookshelf();
+                const msg = e instanceof SyntaxError ? 'Apps Script가 JSON이 아닌 페이지를 돌려줬어요 (액세스 권한이 "모든 사용자"인지, 재배포했는지 확인)' : e.message;
+                const bar = document.createElement('div');
+                bar.className = 'fixed bottom-4 left-4 right-4 z-50 bg-rose-600 text-white font-bold text-sm p-4 rounded-2xl shadow-xl';
+                bar.textContent = '동기화 실패: ' + msg;
+                document.body.appendChild(bar);
+            }
         }
         async function requestToken() {
             return new Promise(res => { tokenResolver = res; tokenClient.requestAccessToken({ prompt: '' }); });
@@ -698,6 +720,11 @@
                 }
             });
 
+            if (!albums.length) {
+                row1.innerHTML = PUBLIC_MODE && syncing
+                    ? '<div class="w-full text-center py-16 text-2xl font-extrabold text-amber-900 animate-pulse">📚 책장을 불러오고 있어요<br><span class="text-lg font-bold text-slate-600">잠시만 기다려 주세요</span></div>'
+                    : '<div class="w-full text-center py-16 text-xl font-extrabold text-slate-500">아직 꽂힌 책이 없어요</div>';
+            }
             lucide.createIcons();
         }
 
@@ -707,8 +734,8 @@
             button.onclick = () => openAlbumViewer(album.id);
 
             button.innerHTML = `
-                <div class="text-[0.7rem] sm:text-xs font-extrabold text-amber-200 tracking-wider">${album.date.split('년')[0]}</div>
-                <div class="spine-text-container text-sm sm:text-base font-bold font-book-title text-slate-100 my-auto py-2 leading-relaxed">
+                <div class="text-base font-extrabold text-amber-200 tracking-wider">${album.date.split('년')[0]}</div>
+                <div class="spine-text-container font-bold font-book-title text-slate-100 my-auto py-2 leading-relaxed">
                     ${album.title}
                 </div>
                 <div class="w-3.5 h-3.5 rounded-full bg-amber-400 shadow-md"></div>
