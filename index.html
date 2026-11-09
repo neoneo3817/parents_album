@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>부모님 추억 서재 - 여행 사진 및 동영상 앨범</title>
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="theme-color" content="#b45309">
+    <link rel="icon" href="icon-192.png">
+    <link rel="apple-touch-icon" href="icon-192.png">
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Lucide Icons -->
@@ -133,7 +137,6 @@
             </div>
             <div>
                 <h1 class="font-extrabold text-xl sm:text-2xl text-slate-900 leading-tight">부모님 추억 서재</h1>
-                <p class="text-xs sm:text-sm font-bold text-amber-800">📁 '부모님' 드라이브 앨범 모음</p>
             </div>
         </button>
 
@@ -174,8 +177,6 @@
                 <span class="inline-block text-xs sm:text-sm font-extrabold text-amber-900 bg-amber-100 border border-amber-300 px-4 py-1.5 rounded-full mb-2 shadow-sm">
                     👆 보고 싶은 책을 손가락으로 눌러보세요
                 </span>
-                <h2 class="text-2xl sm:text-4xl font-extrabold text-slate-900 leading-snug">'부모님' 폴더 앨범 목록</h2>
-                <p class="text-sm sm:text-base text-slate-600 font-semibold mt-1">사진과 동영상이 한 권의 여행책으로 만들어졌습니다.</p>
             </div>
 
             <!-- 3D Bookshelf Canvas -->
@@ -589,8 +590,16 @@
                 if (data.error) throw new Error(data.error === 'folder not found' ? "드라이브에서 '부모님' 폴더를 찾지 못했어요" : data.error);
                 if (!data.books || !data.books.length) throw new Error("'부모님' 폴더 안에 하위 폴더(책)가 없어요");
                 const colors = ['from-emerald-800 to-teal-950','from-indigo-700 to-slate-900','from-amber-700 to-orange-950','from-rose-700 to-pink-950','from-purple-800 to-slate-950'];
-                const fromDrive = (data.books || []).map((b, i) => ({
-                    id: 'drive-' + b.id, title: b.title, date: b.date || '드라이브 앨범', color: colors[i % colors.length],
+                const yearOf = t => {
+                    t = String(t);
+                    let m = t.match(/(?:19|20)\d{2}/); if (m) return +m[0];
+                    m = t.match(/(\d{2})\s*년/); if (m) return 2000 + +m[1];
+                    m = t.match(/^\s*(\d{2})(?!\d)/); return m ? 2000 + +m[1] : 0;
+                };
+                const fromDrive = [...(data.books || [])]
+                    .sort((a, b) => yearOf(b.title) - yearOf(a.title) || a.title.localeCompare(b.title, 'ko'))
+                    .map((b, i) => ({
+                    id: 'drive-' + b.id, title: b.title, date: yearOf(b.title) ? yearOf(b.title) + '년' : (b.date || '드라이브 앨범'), color: colors[i % colors.length],
                     memo: `'${b.title}' 폴더의 추억 앨범`,
                     items: b.items.map(f => f.type === 'video'
                         ? { type: 'video', driveId: f.id, title: f.name, url: `https://drive.google.com/file/d/${f.id}/preview` }
@@ -719,7 +728,7 @@
 
         function renderBookshelf() {
             const frame = document.getElementById('bookshelfFrame');
-            const tiers = Math.max(2, Math.ceil(albums.length / 3));
+            const tiers = Math.max(2, Math.ceil(albums.length / 2));
             frame.innerHTML = Array.from({ length: tiers }, (_, i) => `
                 <div class="shelf-layer ${i < tiers - 1 ? 'mb-12 sm:mb-16' : ''}">
                     <div class="flex items-end justify-start space-x-4 sm:space-x-8 min-h-[17rem] px-4 pb-3 border-b-8 border-amber-900 rounded-b-sm relative">
@@ -728,7 +737,7 @@
                     </div>
                 </div>`).join('');
             const rows = frame.querySelectorAll('.shelf-row');
-            albums.forEach((album, index) => rows[Math.floor(index / 3)].appendChild(createBookSpineElement(album)));
+            albums.forEach((album, index) => rows[Math.floor(index / 2)].appendChild(createBookSpineElement(album)));
             if (!albums.length) {
                 rows[0].innerHTML = PUBLIC_MODE && syncing
                     ? '<div class="w-full text-center py-16 text-2xl font-extrabold text-amber-900 animate-pulse">📚 책장을 불러오고 있어요<br><span class="text-lg font-bold text-slate-600">잠시만 기다려 주세요</span></div>'
@@ -1037,6 +1046,9 @@
                 modal.classList.add('hidden');
             }, 300);
         }
+    </script>
+    <script>
+        if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(console.error));
     </script>
 </body>
 </html>
